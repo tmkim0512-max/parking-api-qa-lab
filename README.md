@@ -112,3 +112,10 @@ lint → **환경 기동(별도 단계)** → pytest(JUnit XML) → k6 smoke 게
 - 부하 수치는 SUT·Mock·k6가 한 머신에서 자원을 나눠 쓴 결과이고, 절대 성능이 아니라 **회귀 감지용 기준선**입니다.
 - Mock 서버는 method+path 정확 일치만 지원합니다(쿼리·헤더 매칭, 연결 끊기 fault 없음).
 - UI 테스트는 다루지 않습니다.
+
+## Related
+
+- [ko-tc-playwright](https://github.com/tmkim0512-max/ko-tc-playwright) — 한국어 수동 TC를 Playwright(pytest) 코드로 변환, 변환률과 실행 결과를 따로 보고
+- [pom-scout](https://github.com/tmkim0512-max/pom-scout) — 웹 앱을 탐색해 화면 모델(Page Object JSON)과 유일성 검증된 셀렉터 수집
+- [evidence-gated-e2e-loop](https://github.com/tmkim0512-max/evidence-gated-e2e-loop) — AI가 쓴 Playwright 테스트를 파일 증거로만 채택하고 AI 없이 재실행
+- [false-green-guard](https://github.com/tmkim0512-max/false-green-guard) — 테스트를 무력화해 초록불을 만드는 diff를 탐지하고, 격리 사본에서 수정을 재판정
