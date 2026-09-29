@@ -71,7 +71,7 @@ scripts/stack.sh down
 부하 모델(`PROFILE=load`): `ramping-arrival-rate`: 시나리오 시작률 초당 10→50회 1분 상승 후 초당 50회 2분 유지(HTTP 요청 처리량은 실행 평균 약 51.8~52.1건/초, 예약 시나리오는 요청 2개). p95는 상승 구간 포함 전체 실행 집계. 트래픽 비율 주차장 조회 70% / 예약+취소 20% / ETA 10%. Mock 경로 API 지연 200ms 고정. 예약은 생성 직후 취소해 만석(정상 409)이 성능 실패로 섞이지 않게 했습니다.
 
 **합격 기준**: 에러율 < 1%, check 성공률 > 99%, p95 — 조회 < 20ms, 예약 < 20ms, ETA < 300ms.
-산정 근거: 로컬 3회의 최악 p95(조회 3.55ms, 예약 4.03ms)의 약 5배, ETA는 Mock 고정 지연 200ms + 100ms. CI 공유 러너는 로컬보다 느릴 수 있어 첫 CI 실행 후 재확인이 필요합니다.
+산정 근거: 로컬 3회의 최악 p95(조회 3.55ms, 예약 4.03ms)의 약 5배, ETA는 Mock 고정 지연 200ms + 100ms. 첫 CI 실행(smoke)에서 기준 안에 들어왔습니다(아래 CI 러너 측정값).
 
 ### 로컬 머신 측정값
 
@@ -89,7 +89,14 @@ scripts/stack.sh down
 
 ### CI 러너 측정값
 
-[CI 실행 후 기입] — 아직 push 전이라 GitHub Actions 실행 기록이 없습니다.
+환경: GitHub-hosted `ubuntu-latest`(ubuntu-24.04, 4 vCPU) · Python 3.12.3 · k6 v2.3.0 · SUT·Mock·k6가 같은 러너 · 측정일 2026-09-29
+
+| 실행 | 프로파일 | 요청 수 | 처리량 | 에러율 | check | 조회 p50 / p95 | 예약 p50 / p95 | ETA p50 / p95 | 판정 |
+|---|---|---|---|---|---|---|---|---|---|
+| [run 36533642605](https://github.com/tmkim0512-max/parking-api-qa-lab/actions/runs/36533642605) | smoke (1 VU · 30s) | 1,553 | 51.7/s | 0% | 100% (1,552/1,552) | 0.52 / 0.77ms | 0.73 / 1.00ms | 221.0 / 230.3ms | 통과 |
+
+- 같은 run에서 lint 통과, pytest `31 passed`. 원본은 run의 `test-reports` 아티팩트(`k6-smoke.json`, `junit.xml`).
+- CI는 smoke 프로파일만 자동 실행합니다. 3분 load 프로파일은 CI에서 아직 돌리지 않았으므로 위 로컬 load 값과 직접 비교하지 않습니다.
 
 ## CI
 
@@ -97,7 +104,7 @@ scripts/stack.sh down
 lint → **환경 기동(별도 단계)** → pytest(JUnit XML) → k6 smoke 게이트 → (수동 실행 시 선택) k6 load → 항상: 서비스 로그·Mock 요청 기록·리포트 업로드, Job Summary(통과/실패 수, 실패 테스트 이름, k6 threshold 표).
 자동 재시도(rerun)는 쓰지 않습니다 — 플래키를 초록으로 숨기지 않기 위해서입니다.
 
-검증 상태: `actionlint`로 문법 검증만 통과했습니다. **GitHub Actions에서의 실제 실행은 아직 하지 않았습니다**(로컬에 Docker가 없어 `act`도 미실행).
+검증 상태: GitHub Actions에서 실행해 통과했습니다([run 36533642605](https://github.com/tmkim0512-max/parking-api-qa-lab/actions/runs/36533642605), job `test` 47초).
 
 ## 한계
 
