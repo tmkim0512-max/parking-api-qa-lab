@@ -1,0 +1,78 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      load:
+        description: Also run the 3-minute k6 load profile
+        type: boolean
+        default: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Install
+        run: uv sync --python 3.12
+
+      - name: Lint
+        run: uv run ruff check .
+
+      # Separate step so an environment failure is never reported as a test failure.
+      - name: Start SUT + mock server (environment)
+        run: scripts/stack.sh up
+
+      - name: pytest (API / ETA integration / mock server)
+        run: uv run pytest -v --junitxml=reports/junit.xml
+
+      - uses: grafana/setup-k6-action@v1
+
+      - name: k6 smoke (thresholds = pass criteria)
+        run: k6 run -e PROFILE=smoke -e RUN_ENV="github-hosted ubuntu-latest, $(nproc) vCPU" load/load.js
+
+      - name: k6 load (manual runs only)
+        if: inputs.load
+        run: k6 run -e PROFILE=load -e RUN_ENV="github-hosted ubuntu-latest, $(nproc) vCPU" load/load.js
+
+      - name: Collect service logs and mock request journal
+        if: always()
+        run: |
+          mkdir -p reports
+          cp .stack/*.log reports/ || echo "no service logs (stack never started)"
+          curl -fsS http://127.0.0.1:8081/__admin/requests -o reports/mock-requests.json \
+            || echo "mock server not reachable"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-reports
+          path: reports/
+
+      - name: Job summary
+        if: always()
+        run: |
+          python3 - >> "$GITHUB_STEP_SUMMARY" <<'EOF'
+          import glob, json, os, xml.etree.ElementTree as ET
+          if os.path.exists("reports/junit.xml"):
+              s = ET.parse("reports/junit.xml").getroot().find("testsuite")
+              print(f"### pytest: {s.get('tests')} tests, {s.get('failures')} failed, "
+                    f"{s.get('errors')} errors, {s.get('skipped')} skipped")
+              for case in s.iter("testcase"):
+                  if case.find("failure") is not None or case.find("error") is not None:
+                      print(f"- FAILED `{case.get('classname')}::{case.get('name')}`")
+          else:
+              print("### pytest: no junit report (did not run)")
+          for f in sorted(glob.glob("reports/k6-*.json")):
+              m = json.load(open(f))["metrics"]
+              print(f"\n### k6 `{f}`\n| metric | threshold | observed | ok |\n|---|---|---|---|")
+              for name, v in m.items():
+                  for expr, res in (v.get("thresholds") or {}).items():
+                      obs = v["values"].get("p(95)", v["values"].get("rate"))
+                      print(f"| {name} | {expr} | {obs:.3f} | {'yes' if res['ok'] else 'NO'} |")
+          EOF

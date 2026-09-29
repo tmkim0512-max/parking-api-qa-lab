@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "External route API response",
+  "type": "object",
+  "required": ["eta_sec", "distance_m"],
+  "properties": {
+    "eta_sec": {"type": "integer", "minimum": 0},
+    "distance_m": {"type": "integer", "minimum": 0}
+  }
+}
